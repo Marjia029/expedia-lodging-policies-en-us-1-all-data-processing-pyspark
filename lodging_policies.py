@@ -16,7 +16,7 @@ def initialize_spark():
             .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
             .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog") \
             .config("spark.sql.catalog.local.type", "hadoop") \
-            .config("spark.sql.catalog.local.warehouse", "warehouse/default") \
+            .config("spark.sql.catalog.local.warehouse", "warehouse") \
             .getOrCreate()
         
         end_time = time.time()
@@ -314,11 +314,11 @@ def write_to_iceberg(transformed_df,spark):
             OPTIONS ('format-version'='2')
         """)
 
-        transformed_df.writeTo("local.default.lodging_policies") \
+        transformed_df.distinct().writeTo("local.default.lodging_policies") \
             .partitionedBy("country_code") \
             .tableProperty("write.format.default", "parquet") \
             .tableProperty("write.parquet.compression-codec", "snappy") \
-            .createOrReplace()
+            .append()
         
         end_time = time.time()
         print(f"Time to write to Iceberg: {end_time - start_time} seconds")
@@ -360,6 +360,13 @@ def main():
     spark.sql("SELECT * FROM local.default.lodging_policies ORDER BY country_code ASC").show(50)
     # Query the partitions metadata table
     spark.sql("SELECT partition, record_count FROM local.default.lodging_policies.partitions").show(50,truncate=False)
+
+    # Execute SQL to count the total number of rows in the table
+    result = spark.sql("SELECT COUNT(*) AS total_rows FROM local.default.lodging_policies").collect()
+    total_rows = result[0]['total_rows']
+
+    # Print the total number of rows
+    print(f"Total rows: {total_rows}")
 
     # Stop the Spark session
     spark.stop()
